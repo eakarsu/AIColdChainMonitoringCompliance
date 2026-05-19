@@ -23,6 +23,7 @@ import facilitiesRoutes from './routes/facilities.js';
 import regulatoryRoutes from './routes/regulatory.js';
 import predictiveRoutes from './routes/predictive.js';
 import notificationsRoutes from './routes/notifications.js';
+import customViewsRoutes from './routes/customViews.js';
 
 import _route_coldChainAgent from './routes/coldChainAgent.js';
 import _route_gdpCfrRag from './routes/gdpCfrRag.js';
@@ -99,6 +100,8 @@ app.use('/api/regulatory', regulatoryRoutes);
 app.use('/api/predictive', predictiveRoutes);
 // Audit-recommended addition (notifications)
 app.use('/api/notifications', notificationsRoutes);
+// Custom views: 4 synthesized cold-chain endpoints
+app.use('/api/custom-views', customViewsRoutes);
 
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
@@ -122,14 +125,14 @@ app.listen(PORT, () => {
 export default app;
 
 
-// === Batch 01 Gaps & Frontend Mounts ===
-app.use('/api/gap-0-mounted-chat-style-ai-endpoints-despite-ainew-js', require('./routes/gap_0_mounted_chat_style_ai_endpoints_despite_ainew_js'));
-app.use('/api/gap-no-ai-excursion-classification-real-vs-sensor-glit', require('./routes/gap_no_ai_excursion_classification_real_vs_sensor_glit'));
-app.use('/api/gap-no-ai-predictive-route-risk-scoring', require('./routes/gap_no_ai_predictive_route_risk_scoring'));
-app.use('/api/gap-no-ai-auto-generated-deviation-reports-for-regulat', require('./routes/gap_no_ai_auto_generated_deviation_reports_for_regulat'));
-app.use('/api/gap-no-ai-spoilage-forecast-at-lot-level', require('./routes/gap_no_ai_spoilage_forecast_at_lot_level'));
-app.use('/api/gap-notification-routes-exist-but-no-sms-push-delivery', require('./routes/gap_notification_routes_exist_but_no_sms_push_delivery'));
-app.use('/api/gap-no-live-iot-sensor-stream-ingestion-layer-only-sto', require('./routes/gap_no_live_iot_sensor_stream_ingestion_layer_only_sto'));
-app.use('/api/gap-no-direct-carrier-edi-api-for-eta-updates', require('./routes/gap_no_direct_carrier_edi_api_for_eta_updates'));
-app.use('/api/gap-no-multi-product-pharma-vs-food-regulatory-templat', require('./routes/gap_no_multi_product_pharma_vs_food_regulatory_templat'));
-app.use('/api/gap-no-customer-lot-recall-workflow', require('./routes/gap_no_customer_lot_recall_workflow'));
+// === Batch 01 Gaps & Frontend Mounts (disabled — pre-existing CJS require() in ESM project) ===
+// app.use('/api/gap-0-mounted-chat-style-ai-endpoints-despite-ainew-js', require('./routes/gap_0_mounted_chat_style_ai_endpoints_despite_ainew_js'));
+// app.use('/api/gap-no-ai-excursion-classification-real-vs-sensor-glit', require('./routes/gap_no_ai_excursion_classification_real_vs_sensor_glit'));
+// app.use('/api/gap-no-ai-predictive-route-risk-scoring', require('./routes/gap_no_ai_predictive_route_risk_scoring'));
+// app.use('/api/gap-no-ai-auto-generated-deviation-reports-for-regulat', require('./routes/gap_no_ai_auto_generated_deviation_reports_for_regulat'));
+// app.use('/api/gap-no-ai-spoilage-forecast-at-lot-level', require('./routes/gap_no_ai_spoilage_forecast_at_lot_level'));
+// app.use('/api/gap-notification-routes-exist-but-no-sms-push-delivery', require('./routes/gap_notification_routes_exist_but_no_sms_push_delivery'));
+// app.use('/api/gap-no-live-iot-sensor-stream-ingestion-layer-only-sto', require('./routes/gap_no_live_iot_sensor_stream_ingestion_layer_only_sto'));
+// app.use('/api/gap-no-direct-carrier-edi-api-for-eta-updates', require('./routes/gap_no_direct_carrier_edi_api_for_eta_updates'));
+// app.use('/api/gap-no-multi-product-pharma-vs-food-regulatory-templat', require('./routes/gap_no_multi_product_pharma_vs_food_regulatory_templat'));
+// app.use('/api/gap-no-customer-lot-recall-workflow', require('./routes/gap_no-customer-lot-recall-workflow'));

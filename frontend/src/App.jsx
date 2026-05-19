@@ -18,6 +18,7 @@ import RegulatoryPage from './pages/RegulatoryPage';
 import PredictivePage from './pages/PredictivePage';
 import NotificationsPage from './pages/NotificationsPage';
 import AIAssistantPage from './pages/AIAssistantPage';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 function ProtectedRoute({ children }) {
   const token = getToken();
@@ -153,6 +154,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AIAssistantPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/custom-views"
+          element={
+            <ProtectedRoute>
+              <CustomViewsPage />
             </ProtectedRoute>
           }
         />

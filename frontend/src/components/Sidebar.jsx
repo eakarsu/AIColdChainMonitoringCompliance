@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { FiGrid, FiThermometer, FiAlertTriangle, FiShield, FiTruck, FiFileText, FiLogOut, FiMenu, FiX, FiBell, FiBarChart2, FiUsers, FiClock, FiHome, FiBookOpen, FiZap, FiCpu } from 'react-icons/fi';
+import { FiGrid, FiThermometer, FiAlertTriangle, FiShield, FiTruck, FiFileText, FiLogOut, FiMenu, FiX, FiBell, FiBarChart2, FiUsers, FiClock, FiHome, FiBookOpen, FiZap, FiCpu, FiLayers } from 'react-icons/fi';
 import { removeToken } from '../api';
 
 const navItems = [
@@ -19,6 +19,7 @@ const navItems = [
   { path: '/reports', label: 'Reports & Export', icon: FiBarChart2 },
   { path: '/users', label: 'User Management', icon: FiUsers },
   { path: '/audit', label: 'Audit Log', icon: FiClock },
+  { path: '/custom-views', label: 'Cold Chain Views', icon: FiLayers },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen }) {
