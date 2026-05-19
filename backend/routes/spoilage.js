@@ -1,21 +1,51 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import authenticate from '../middleware/auth.js';
-import { analyzeSpoilage } from '../services/openrouter.js';
+import aiRateLimiter from '../middleware/rateLimiter.js';
+import { analyzeSpoilage, calculateSpoilageCost } from '../services/openrouter.js';
 
 const router = Router();
 
-router.get('/', async (req, res) => {
+// Paginated list with optional filters
+router.get('/', authenticate, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM spoilage_predictions ORDER BY created_at DESC');
-    res.json(result.rows);
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit) || 50));
+    const offset = (page - 1) * limit;
+    const { risk_level, status, search } = req.query;
+
+    const conditions = [];
+    const params = [];
+    if (risk_level) { conditions.push(`risk_level = $${params.length + 1}`); params.push(risk_level); }
+    if (status) { conditions.push(`status = $${params.length + 1}`); params.push(status); }
+    if (search) {
+      conditions.push(`(product_name ILIKE $${params.length + 1} OR batch_id ILIKE $${params.length + 1})`);
+      params.push(`%${search}%`);
+    }
+    const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+    const [data, count] = await Promise.all([
+      pool.query(`SELECT * FROM spoilage_predictions ${where} ORDER BY created_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`, [...params, limit, offset]),
+      pool.query(`SELECT COUNT(*)::int AS total FROM spoilage_predictions ${where}`, params),
+    ]);
+    const total = count.rows[0].total;
+
+    res.json({
+      data: data.rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     console.error('Error fetching spoilage predictions:', err);
     res.status(500).json({ error: 'Failed to fetch spoilage predictions' });
   }
 });
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM spoilage_predictions WHERE id = $1', [id]);
@@ -24,14 +54,14 @@ router.get('/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error fetching spoilage prediction:', err);
     res.status(500).json({ error: 'Failed to fetch spoilage prediction' });
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const { product_name, batch_id, product_type, current_temp, storage_temp, quantity, unit, manufacture_date, expiry_date, predicted_spoilage_date, risk_level, confidence, status, ai_analysis } = req.body;
+    if (!product_name) return res.status(400).json({ error: 'product_name is required' });
     const result = await pool.query(
       `INSERT INTO spoilage_predictions (product_name, batch_id, product_type, current_temp, storage_temp, quantity, unit, manufacture_date, expiry_date, predicted_spoilage_date, risk_level, confidence, status, ai_analysis)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
@@ -44,7 +74,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const { product_name, batch_id, product_type, current_temp, storage_temp, quantity, unit, manufacture_date, expiry_date, predicted_spoilage_date, risk_level, confidence, status, ai_analysis } = req.body;
@@ -58,12 +88,11 @@ router.put('/:id', async (req, res) => {
     }
     res.json(result.rows[0]);
   } catch (err) {
-    console.error('Error updating spoilage prediction:', err);
     res.status(500).json({ error: 'Failed to update spoilage prediction' });
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('DELETE FROM spoilage_predictions WHERE id = $1 RETURNING *', [id]);
@@ -72,12 +101,12 @@ router.delete('/:id', async (req, res) => {
     }
     res.json({ message: 'Spoilage prediction deleted', data: result.rows[0] });
   } catch (err) {
-    console.error('Error deleting spoilage prediction:', err);
     res.status(500).json({ error: 'Failed to delete spoilage prediction' });
   }
 });
 
-router.post('/:id/predict', async (req, res) => {
+// AI predict (rate-limited)
+router.post('/:id/predict', authenticate, aiRateLimiter, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT * FROM spoilage_predictions WHERE id = $1', [id]);
@@ -85,12 +114,40 @@ router.post('/:id/predict', async (req, res) => {
       return res.status(404).json({ error: 'Spoilage prediction not found' });
     }
     const product = result.rows[0];
-    const analysis = await analyzeSpoilage(product);
-    await pool.query('UPDATE spoilage_predictions SET ai_analysis = $1 WHERE id = $2', [analysis, id]);
-    res.json({ product, analysis });
+    const aiRes = await analyzeSpoilage(product);
+    if (!aiRes.success) return res.status(502).json({ error: aiRes.error });
+
+    await pool.query(
+      'UPDATE spoilage_predictions SET ai_analysis = $1, ai_results = $2, risk_level = COALESCE($3, risk_level) WHERE id = $4',
+      [aiRes.content, aiRes.parsed ? JSON.stringify(aiRes.parsed) : null, aiRes.parsed?.risk_level?.toLowerCase() || null, id]
+    );
+    res.json({ product, analysis: aiRes.content, parsed: aiRes.parsed, parseStrategy: aiRes.parseStrategy });
   } catch (err) {
     console.error('Error predicting spoilage:', err);
     res.status(500).json({ error: 'Failed to predict spoilage' });
+  }
+});
+
+// NEW: Spoilage Cost Calculator (rate-limited)
+router.post('/:id/cost', authenticate, aiRateLimiter, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM spoilage_predictions WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Spoilage prediction not found' });
+    }
+    const product = result.rows[0];
+    const costRes = await calculateSpoilageCost(product);
+    if (!costRes.success) return res.status(502).json({ error: costRes.error });
+
+    await pool.query(
+      'UPDATE spoilage_predictions SET cost_analysis = $1, estimated_loss_usd = $2 WHERE id = $3',
+      [costRes.parsed ? JSON.stringify(costRes.parsed) : null, costRes.parsed?.estimated_loss_usd || null, id]
+    );
+    res.json({ product, cost: costRes.parsed, raw: costRes.content });
+  } catch (err) {
+    console.error('Error calculating spoilage cost:', err);
+    res.status(500).json({ error: 'Failed to calculate spoilage cost' });
   }
 });
 

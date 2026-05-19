@@ -13,6 +13,12 @@ import AlertsPage from './pages/AlertsPage';
 import ReportsPage from './pages/ReportsPage';
 import UsersPage from './pages/UsersPage';
 import AuditLogPage from './pages/AuditLogPage';
+import FacilitiesPage from './pages/FacilitiesPage';
+import RegulatoryPage from './pages/RegulatoryPage';
+import PredictivePage from './pages/PredictivePage';
+import NotificationsPage from './pages/NotificationsPage';
+import AIAssistantPage from './pages/AIAssistantPage';
+import CustomViewsPage from './pages/CustomViewsPage';
 
 function ProtectedRoute({ children }) {
   const token = getToken();
@@ -108,6 +114,54 @@ function App() {
           element={
             <ProtectedRoute>
               <AuditLogPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/facilities"
+          element={
+            <ProtectedRoute>
+              <FacilitiesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/regulatory"
+          element={
+            <ProtectedRoute>
+              <RegulatoryPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/predictive"
+          element={
+            <ProtectedRoute>
+              <PredictivePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-assistant"
+          element={
+            <ProtectedRoute>
+              <AIAssistantPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/custom-views"
+          element={
+            <ProtectedRoute>
+              <CustomViewsPage />
             </ProtectedRoute>
           }
         />

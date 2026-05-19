@@ -1,10 +1,152 @@
 import { Router } from 'express';
 import pool from '../db.js';
 import authenticate from '../middleware/auth.js';
+import fetch from 'node-fetch';
 
 const router = Router();
 
-// Get all alerts (temperature readings that breached thresholds)
+// ─── In-memory threshold config (falls back to DB table if available) ─────────
+// Structure: { [category]: { min_temp, max_temp, humidity_min, humidity_max, response_time_sla_minutes } }
+let thresholdConfig = {};
+
+// ─── Webhook delivery with retry ──────────────────────────────────────────────
+async function deliverWebhook(webhookUrl, payload, attempt = 1) {
+  try {
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      timeout: 10000,
+    });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  } catch (err) {
+    if (attempt < 3) {
+      const delay = Math.pow(2, attempt) * 1000; // 2s, 4s
+      setTimeout(() => deliverWebhook(webhookUrl, payload, attempt + 1), delay);
+    } else {
+      console.error(`Webhook delivery failed after 3 attempts to ${webhookUrl}:`, err.message);
+    }
+  }
+}
+
+// ─── Fire webhooks for critical alerts ────────────────────────────────────────
+export async function fireCriticalWebhooks(alertData) {
+  try {
+    const result = await pool.query('SELECT webhook_url FROM webhook_configs WHERE active = true');
+    for (const row of result.rows) {
+      deliverWebhook(row.webhook_url, {
+        event: 'critical_alert',
+        timestamp: new Date().toISOString(),
+        alert: alertData,
+      });
+    }
+  } catch (err) {
+    console.error('Error firing webhooks:', err.message);
+  }
+}
+
+// ─── POST /api/alerts/configure — set thresholds ──────────────────────────────
+router.post('/configure', authenticate, async (req, res) => {
+  try {
+    const {
+      category,
+      min_temp,
+      max_temp,
+      humidity_min,
+      humidity_max,
+      response_time_sla_minutes,
+    } = req.body;
+
+    if (!category) {
+      return res.status(400).json({ error: 'category is required' });
+    }
+
+    thresholdConfig[category] = {
+      min_temp: min_temp ?? thresholdConfig[category]?.min_temp,
+      max_temp: max_temp ?? thresholdConfig[category]?.max_temp,
+      humidity_min: humidity_min ?? thresholdConfig[category]?.humidity_min,
+      humidity_max: humidity_max ?? thresholdConfig[category]?.humidity_max,
+      response_time_sla_minutes: response_time_sla_minutes ?? thresholdConfig[category]?.response_time_sla_minutes,
+    };
+
+    // Persist to DB if table exists
+    try {
+      await pool.query(`
+        INSERT INTO alert_thresholds (category, min_temp, max_temp, humidity_min, humidity_max, response_time_sla_minutes, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (category) DO UPDATE
+          SET min_temp = EXCLUDED.min_temp,
+              max_temp = EXCLUDED.max_temp,
+              humidity_min = EXCLUDED.humidity_min,
+              humidity_max = EXCLUDED.humidity_max,
+              response_time_sla_minutes = EXCLUDED.response_time_sla_minutes,
+              updated_at = NOW()
+      `, [category, min_temp, max_temp, humidity_min, humidity_max, response_time_sla_minutes]);
+    } catch (_dbErr) {
+      // Table may not exist yet — config is still held in memory
+    }
+
+    res.json({ message: 'Threshold configuration saved', config: thresholdConfig[category] });
+  } catch (err) {
+    console.error('Error configuring thresholds:', err);
+    res.status(500).json({ error: 'Failed to save threshold configuration' });
+  }
+});
+
+// ─── GET /api/alerts/thresholds — return current config ───────────────────────
+router.get('/thresholds', authenticate, async (req, res) => {
+  try {
+    // Attempt to load from DB (merges with in-memory)
+    try {
+      const result = await pool.query('SELECT * FROM alert_thresholds ORDER BY category');
+      for (const row of result.rows) {
+        thresholdConfig[row.category] = {
+          min_temp: row.min_temp,
+          max_temp: row.max_temp,
+          humidity_min: row.humidity_min,
+          humidity_max: row.humidity_max,
+          response_time_sla_minutes: row.response_time_sla_minutes,
+          updated_at: row.updated_at,
+        };
+      }
+    } catch (_) {
+      // table may not exist
+    }
+    res.json({ thresholds: thresholdConfig });
+  } catch (err) {
+    console.error('Error fetching thresholds:', err);
+    res.status(500).json({ error: 'Failed to fetch thresholds' });
+  }
+});
+
+// ─── POST /api/webhooks/configure ─────────────────────────────────────────────
+router.post('/webhook/configure', authenticate, async (req, res) => {
+  try {
+    const { webhook_url } = req.body;
+    if (!webhook_url) {
+      return res.status(400).json({ error: 'webhook_url is required' });
+    }
+
+    const userId = req.user.id;
+    try {
+      await pool.query(`
+        INSERT INTO webhook_configs (user_id, webhook_url, active, created_at, updated_at)
+        VALUES ($1, $2, true, NOW(), NOW())
+        ON CONFLICT (user_id) DO UPDATE
+          SET webhook_url = EXCLUDED.webhook_url, active = true, updated_at = NOW()
+      `, [userId, webhook_url]);
+    } catch (_) {
+      return res.status(500).json({ error: 'Failed to save webhook — ensure webhook_configs table exists' });
+    }
+
+    res.json({ message: 'Webhook configured successfully', webhook_url });
+  } catch (err) {
+    console.error('Error configuring webhook:', err);
+    res.status(500).json({ error: 'Failed to configure webhook' });
+  }
+});
+
+// ─── GET /api/alerts — all alerts ────────────────────────────────────────────
 router.get('/', authenticate, async (req, res) => {
   try {
     const { status, severity } = req.query;
@@ -49,6 +191,18 @@ router.get('/', authenticate, async (req, res) => {
       query += ` AND COALESCE(a.acknowledged, false) = false`;
     }
 
+    if (severity) {
+      query += ` AND (
+        CASE
+          WHEN tr.temperature > tr.max_threshold + 5 OR tr.temperature < tr.min_threshold - 5 THEN 'critical'
+          WHEN tr.temperature > tr.max_threshold + 2 OR tr.temperature < tr.min_threshold - 2 THEN 'high'
+          WHEN tr.temperature > tr.max_threshold OR tr.temperature < tr.min_threshold THEN 'medium'
+          ELSE 'low'
+        END
+      ) = $${params.length + 1}`;
+      params.push(severity);
+    }
+
     query += ` ORDER BY tr.timestamp DESC`;
 
     const result = await pool.query(query, params);
@@ -59,7 +213,7 @@ router.get('/', authenticate, async (req, res) => {
   }
 });
 
-// Get alert stats
+// ─── GET /api/alerts/stats ────────────────────────────────────────────────────
 router.get('/stats', authenticate, async (req, res) => {
   try {
     const result = await pool.query(`
@@ -77,7 +231,7 @@ router.get('/stats', authenticate, async (req, res) => {
   }
 });
 
-// Acknowledge an alert
+// ─── POST /api/alerts/:id/acknowledge ────────────────────────────────────────
 router.post('/:id/acknowledge', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -97,7 +251,7 @@ router.post('/:id/acknowledge', authenticate, async (req, res) => {
   }
 });
 
-// Dismiss (unacknowledge) an alert
+// ─── POST /api/alerts/:id/dismiss ────────────────────────────────────────────
 router.post('/:id/dismiss', authenticate, async (req, res) => {
   try {
     const { id } = req.params;
@@ -108,5 +262,8 @@ router.post('/:id/dismiss', authenticate, async (req, res) => {
     res.status(500).json({ error: 'Failed to dismiss alert' });
   }
 });
+
+// Export thresholdConfig for use in temperature route
+export { thresholdConfig };
 
 export default router;
