@@ -24,6 +24,7 @@ import regulatoryRoutes from './routes/regulatory.js';
 import predictiveRoutes from './routes/predictive.js';
 import notificationsRoutes from './routes/notifications.js';
 import customViewsRoutes from './routes/customViews.js';
+import lotRecallTraceRoutes from './routes/lotRecallTrace.js';
 
 import _route_coldChainAgent from './routes/coldChainAgent.js';
 import _route_gdpCfrRag from './routes/gdpCfrRag.js';
@@ -102,6 +103,7 @@ app.use('/api/predictive', predictiveRoutes);
 app.use('/api/notifications', notificationsRoutes);
 // Custom views: 4 synthesized cold-chain endpoints
 app.use('/api/custom-views', customViewsRoutes);
+app.use('/api/lot-recall-trace', lotRecallTraceRoutes);
 
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);

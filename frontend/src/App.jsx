@@ -19,6 +19,12 @@ import PredictivePage from './pages/PredictivePage';
 import NotificationsPage from './pages/NotificationsPage';
 import AIAssistantPage from './pages/AIAssistantPage';
 import CustomViewsPage from './pages/CustomViewsPage';
+import LotRecallTracePage from './pages/LotRecallTracePage';
+
+import CodexCustomVizFeature from './pages/CodexCustomVizFeature';
+import CodexOperationsFeature from './pages/CodexOperationsFeature';
+
+import TimelineView from './pages/TimelineView';
 
 function ProtectedRoute({ children }) {
   const token = getToken();
@@ -36,6 +42,10 @@ function App() {
     <>
       <div className="toast-container" id="toast-container"></div>
       <Routes>
+        <Route path="/insights/timeline" element={<ProtectedRoute><TimelineView /></ProtectedRoute>} />
+        <Route path="/codex/custom-viz" element={<ProtectedRoute><CodexCustomVizFeature /></ProtectedRoute>} />
+        <Route path="/codex/operations" element={<ProtectedRoute><CodexOperationsFeature /></ProtectedRoute>} />
+
         <Route path="/login" element={<LoginPage onLogin={triggerUpdate} />} />
         <Route
           path="/"
@@ -162,6 +172,14 @@ function App() {
           element={
             <ProtectedRoute>
               <CustomViewsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lot-recall-trace"
+          element={
+            <ProtectedRoute>
+              <LotRecallTracePage />
             </ProtectedRoute>
           }
         />

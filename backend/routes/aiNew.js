@@ -6,7 +6,7 @@ import aiRateLimiter from '../middleware/rateLimiter.js';
 const router = Router();
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'anthropic/claude-3-5-sonnet-20241022';
+const MODEL = process.env.OPENROUTER_MODEL || 'anthropic/claude-3-5-sonnet-20241022';
 const SYSTEM_PROMPT =
   'You are an expert cold chain compliance specialist with deep knowledge of FDA, FSMA, GDP, and WHO temperature-controlled logistics requirements.';
 

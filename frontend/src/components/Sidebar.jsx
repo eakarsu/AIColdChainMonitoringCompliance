@@ -16,6 +16,7 @@ const navItems = [
   { path: '/regulatory', label: 'Regulatory Changes', icon: FiBookOpen },
   { path: '/predictive', label: 'Predictive Ops', icon: FiZap },
   { path: '/ai-assistant', label: 'AI Assistant', icon: FiCpu },
+  { path: '/lot-recall-trace', label: 'Lot Recall Trace', icon: FiAlertTriangle },
   { path: '/reports', label: 'Reports & Export', icon: FiBarChart2 },
   { path: '/users', label: 'User Management', icon: FiUsers },
   { path: '/audit', label: 'Audit Log', icon: FiClock },
