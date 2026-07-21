@@ -37,6 +37,8 @@ async function seed() {
         password_hash VARCHAR(255) NOT NULL,
         name VARCHAR(255) NOT NULL,
         role VARCHAR(50) NOT NULL DEFAULT 'viewer',
+        tenant_id UUID NOT NULL,
+        active BOOLEAN NOT NULL DEFAULT true,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
 
@@ -155,16 +157,17 @@ async function seed() {
     `);
 
     console.log('Seeding users...');
-    const passwordHash = await bcrypt.hash('admin123', 10);
-    const viewerHash = await bcrypt.hash('viewer123', 10);
-    const managerHash = await bcrypt.hash('manager123', 10);
+    if (!process.env.DEMO_ADMIN_PASSWORD || !process.env.DEMO_VIEWER_PASSWORD || !process.env.DEMO_MANAGER_PASSWORD) throw new Error('Explicit demo passwords are required');
+    const passwordHash = await bcrypt.hash(process.env.DEMO_ADMIN_PASSWORD, 10);
+    const viewerHash = await bcrypt.hash(process.env.DEMO_VIEWER_PASSWORD, 10);
+    const managerHash = await bcrypt.hash(process.env.DEMO_MANAGER_PASSWORD, 10);
     await client.query(`
-      INSERT INTO users (email, password_hash, name, role) VALUES
-      ('admin@coldchain.com', $1, 'Admin User', 'admin'),
-      ('viewer@coldchain.com', $2, 'Viewer User', 'viewer'),
-      ('manager@coldchain.com', $3, 'Operations Manager', 'manager'),
-      ('auditor@coldchain.com', $1, 'Compliance Auditor', 'auditor'),
-      ('tech@coldchain.com', $2, 'Tech Support', 'technician')
+      INSERT INTO users (email, password_hash, name, role, tenant_id) VALUES
+      ('admin@coldchain.com', $1, 'Admin User', 'admin', '00000000-0000-4000-8000-000000000001'),
+      ('viewer@coldchain.com', $2, 'Viewer User', 'viewer', '00000000-0000-4000-8000-000000000001'),
+      ('manager@coldchain.com', $3, 'Operations Manager', 'manager', '00000000-0000-4000-8000-000000000001'),
+      ('auditor@coldchain.com', $1, 'Compliance Auditor', 'auditor', '00000000-0000-4000-8000-000000000001'),
+      ('tech@coldchain.com', $2, 'Tech Support', 'technician', '00000000-0000-4000-8000-000000000001')
     `, [passwordHash, viewerHash, managerHash]);
 
     console.log('Seeding temperature_readings...');

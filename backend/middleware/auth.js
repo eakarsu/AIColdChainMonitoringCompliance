@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'cold-chain-jwt-secret-2024';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 export default function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
