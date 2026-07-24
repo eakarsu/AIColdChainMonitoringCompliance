@@ -2,6 +2,7 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import pool from '../db.js';
+import authenticate from '../middleware/auth.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -41,6 +42,10 @@ router.post('/login', async (req, res) => {
     console.error('Login error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.get('/me', authenticate, (req, res) => {
+  res.json({ user: req.user });
 });
 
 export default router;

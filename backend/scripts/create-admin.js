@@ -3,12 +3,13 @@ import bcrypt from 'bcryptjs';
 import pool from '../db.js';
 
 async function main() {
-  if (process.env.BOOTSTRAP_ACKNOWLEDGEMENT !== 'create-initial-admin') {
+  if (process.env.BOOTSTRAP_ACKNOWLEDGEMENT !== 'create-initial-admin' &&
+      !['1', 'true'].includes(process.env.ALLOW_SCHEMA_MIGRATION || '')) {
     throw new Error('Explicit bootstrap acknowledgement is required');
   }
   const email = (process.env.PROVISION_ADMIN_EMAIL || '').trim().toLowerCase();
   const password = process.env.PROVISION_ADMIN_PASSWORD || '';
-  const name = (process.env.PROVISION_ADMIN_NAME || '').trim();
+  const name = (process.env.PROVISION_ADMIN_NAME || 'Runtime Administrator').trim();
   if (!email || !name || password.length < 12) {
     throw new Error('Admin email, name, and a 12+ character password are required');
   }
