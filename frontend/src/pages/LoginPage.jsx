@@ -118,7 +118,7 @@ export default function LoginPage({ onLogin }) {
           style={{ width: '100%', justifyContent: 'center' }}
         >
           <FiZap />
-          Quick Login (Demo)
+          Auto Fill Demo Credentials
         </button>
       </div>
     </div>
